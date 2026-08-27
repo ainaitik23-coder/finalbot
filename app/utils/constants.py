@@ -16,7 +16,7 @@ GEMINI_MODELS = [
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
 ]
-GROQ_MODELS = ["llama-3.1-8b-instant"]
+GROQ_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"]
 
 IG_MESSAGING_FIELD = "messaging"
 

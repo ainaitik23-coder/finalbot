@@ -1,7 +1,7 @@
 """Shared constants across the app."""
 
 GRAPH_API_VERSION = "v21.0"
-GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
+GRAPH_API_BASE = f"https://graph.instagram.com/{GRAPH_API_VERSION}"
 
 PROVIDER_GEMINI = "gemini"
 PROVIDER_GROQ = "groq"

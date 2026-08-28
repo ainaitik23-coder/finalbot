@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     @property
     def gemini_keys_list(self) -> list[str]:
         return [k.strip() for k in self.GEMINI_API_KEYS.split(",") if k.strip()]
+    @property
+    def groq_keys_list(self) -> List[str]:
+        return _split_keys(self.GROQ_API_KEYS)
 
 
 settings = Settings()

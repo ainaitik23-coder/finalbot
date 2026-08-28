@@ -15,19 +15,20 @@ class Settings(BaseSettings):
     # LLM provider - comma-separated, as many as you want.
     GEMINI_API_KEYS: str = ""
     GROQ_API_KEYS: str = ""
+
     # App behavior
     DATABASE_URL: str = "sqlite+aiosqlite:///./memory/chat.db"
     LOG_LEVEL: str = "INFO"
     MAX_HISTORY_MESSAGES: int = 20
-
     PRIMARY_USER_ID: str = ""
 
     @property
     def gemini_keys_list(self) -> list[str]:
         return [k.strip() for k in self.GEMINI_API_KEYS.split(",") if k.strip()]
+
     @property
-    def groq_keys_list(self) -> List[str]:
-        return _split_keys(self.GROQ_API_KEYS)
+    def groq_keys_list(self) -> list[str]:
+        return [k.strip() for k in self.GROQ_API_KEYS.split(",") if k.strip()]
 
 
 settings = Settings()

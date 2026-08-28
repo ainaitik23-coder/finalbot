@@ -8,3 +8,4 @@ asyncpg==0.30.0
 pydantic==2.10.4
 pydantic-settings==2.7.1
 tenacity==9.0.0
+tzdata==2025.2

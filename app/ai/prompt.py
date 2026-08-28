@@ -11,7 +11,7 @@ def _read(filename: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(is_primary: bool = True) -> str:
     """
     Combines base system rules + persona + safety notes into one system prompt.
     Edit prompts/persona.txt to control tone/personality - it's plain text,

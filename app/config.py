@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # LLM provider - comma-separated, as many as you want.
     GEMINI_API_KEYS: str = ""
-
+    GROQ_API_KEYS: str = ""
     # App behavior
     DATABASE_URL: str = "sqlite+aiosqlite:///./memory/chat.db"
     LOG_LEVEL: str = "INFO"

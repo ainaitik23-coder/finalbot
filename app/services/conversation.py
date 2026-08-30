@@ -5,17 +5,38 @@ the actual send for later (see app/services/scheduler.py) instead of sending
 immediately. A cron endpoint (/cron/process-scheduled) delivers it once its
 scheduled time arrives - this is what gives the bot human-like reply timing
 instead of replying the instant a message comes in.
+
+If the sender fires off several messages in a row (before the earlier ones
+have actually been delivered), each one's schedule is computed independently
+by default - that can invert order (a later message's "continuity" check can
+fire while an earlier one is still waiting out its random delay) and can
+scatter replies far apart. To avoid that, if the thread already has a
+pending (not yet sent) reply queued, the new reply is chained a few seconds
+after it instead, keeping the whole burst close together and in order.
 """
 import logging
+import random
+from datetime import datetime, timedelta
 
 from app.ai.llm import get_ai_reply
 from app.config import settings
-from app.database.crud import get_or_create_thread, add_message, get_recent_messages, create_scheduled_message
+from app.database.crud import (
+    get_or_create_thread,
+    add_message,
+    get_recent_messages,
+    create_scheduled_message,
+    get_last_pending_send_at,
+)
 from app.database.database import get_session
 from app.services.memory import messages_to_history
 from app.services.scheduler import compute_schedule, GOODNIGHT_MESSAGE
 
 logger = logging.getLogger("conversation")
+
+# Gap between replies when chaining onto an already-pending reply for the
+# same thread (i.e. the sender sent multiple messages in a row).
+CHAIN_GAP_SECONDS_MIN = 2
+CHAIN_GAP_SECONDS_MAX = 6
 
 
 async def handle_incoming_message(sender_id: str, text: str) -> None:
@@ -41,13 +62,25 @@ async def handle_incoming_message(sender_id: str, text: str) -> None:
 
         await add_message(session, thread.id, role="assistant", content=reply_text, provider=provider)
 
+        # If this thread already has a reply queued that hasn't gone out yet,
+        # chain this one right after it (small gap) so order + batching stay
+        # correct regardless of what the random-delay/continuity logic above
+        # decided in isolation.
+        last_pending = await get_last_pending_send_at(session, thread.id)
+        now_utc = datetime.utcnow()
+        if last_pending is not None:
+            gap = timedelta(seconds=random.randint(CHAIN_GAP_SECONDS_MIN, CHAIN_GAP_SECONDS_MAX))
+            send_at = max(last_pending, now_utc) + gap
+        else:
+            send_at = decision.send_at_utc
+
         await create_scheduled_message(
             session,
             thread_id=thread.id,
             ig_sender_id=sender_id,
             reply_text=reply_text,
-            send_at=decision.send_at_utc,
+            send_at=send_at,
             provider=provider,
         )
 
-    logger.info(f"Scheduled reply for {sender_id} at {decision.send_at_utc} UTC")
+    logger.info(f"Scheduled reply for {sender_id} at {send_at} UTC")

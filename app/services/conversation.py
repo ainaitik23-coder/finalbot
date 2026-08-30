@@ -16,7 +16,9 @@ after it instead, keeping the whole burst close together and in order.
 """
 import logging
 import random
+from collections import defaultdict
 from datetime import datetime, timedelta
+from asyncio import Lock
 
 from app.ai.llm import get_ai_reply
 from app.config import settings
@@ -38,8 +40,22 @@ logger = logging.getLogger("conversation")
 CHAIN_GAP_SECONDS_MIN = 2
 CHAIN_GAP_SECONDS_MAX = 6
 
+# One lock per sender - guarantees that if this person sends several
+# messages close together, each one is FULLY processed (LLM call, DB write,
+# scheduling) before the next one starts. Without this, two messages
+# processed concurrently could finish their (variable-latency) LLM calls in
+# a different order than they arrived, and the faster one would grab
+# get_last_pending_send_at() before the earlier one had written anything -
+# scrambling both the order and the "queue right after" chaining.
+_sender_locks: dict[str, Lock] = defaultdict(Lock)
+
 
 async def handle_incoming_message(sender_id: str, text: str) -> None:
+    async with _sender_locks[sender_id]:
+        await _handle_incoming_message_locked(sender_id, text)
+
+
+async def _handle_incoming_message_locked(sender_id: str, text: str) -> None:
     is_primary = bool(settings.PRIMARY_USER_ID) and sender_id == settings.PRIMARY_USER_ID
     if not settings.PRIMARY_USER_ID:
         is_primary = True

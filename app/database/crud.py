@@ -76,6 +76,23 @@ async def get_due_scheduled_messages(session: AsyncSession, now: datetime) -> li
     return list(result.scalars().all())
 
 
+async def get_last_pending_send_at(session: AsyncSession, thread_id: int) -> datetime | None:
+    """
+    Latest send_at among this thread's still-pending scheduled replies.
+    Used to chain a new reply right after an already-queued one instead of
+    letting it jump ahead (which is what caused out-of-order / all-at-once
+    replies when several messages arrived close together).
+    """
+    result = await session.execute(
+        select(ScheduledMessage.send_at)
+        .where(ScheduledMessage.thread_id == thread_id)
+        .where(ScheduledMessage.status == "pending")
+        .order_by(ScheduledMessage.send_at.desc())
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
 async def mark_scheduled_status(session: AsyncSession, scheduled_id: int, status: str) -> None:
     result = await session.execute(
         select(ScheduledMessage).where(ScheduledMessage.id == scheduled_id)

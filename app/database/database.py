@@ -1,6 +1,7 @@
 """Async SQLAlchemy engine/session setup."""
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from app.config import settings
@@ -29,6 +30,22 @@ async def init_db() -> None:
     """Create tables if they don't exist. Call once on startup."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all() never alters an already-existing table, so a brand
+        # new column on an existing model (like is_primary_confirmed) needs
+        # its own migration. IF NOT EXISTS makes this safe to run every
+        # startup, on a fresh table or an old one.
+        try:
+            await conn.execute(
+                text(
+                    "ALTER TABLE threads "
+                    "ADD COLUMN IF NOT EXISTS is_primary_confirmed BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+        except Exception:
+            # e.g. running on SQLite locally, which doesn't support this
+            # syntax - harmless there since create_all already made the
+            # column correctly on a fresh table.
+            pass
 
 
 @asynccontextmanager

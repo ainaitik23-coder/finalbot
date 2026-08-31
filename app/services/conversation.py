@@ -16,18 +16,19 @@ after it instead, keeping the whole burst close together and in order.
 """
 import logging
 import random
+import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 from asyncio import Lock
 
 from app.ai.llm import get_ai_reply
-from app.config import settings
 from app.database.crud import (
     get_or_create_thread,
     add_message,
     get_recent_messages,
     create_scheduled_message,
     get_last_pending_send_at,
+    mark_thread_primary_confirmed,
 )
 from app.database.database import get_session
 from app.services.memory import messages_to_history
@@ -39,6 +40,18 @@ logger = logging.getLogger("conversation")
 # same thread (i.e. the sender sent multiple messages in a row).
 CHAIN_GAP_SECONDS_MIN = 2
 CHAIN_GAP_SECONDS_MAX = 6
+
+# Nobody gets the "primary" persona (system.txt + persona_primary.txt) just
+# by messaging the account. A thread only becomes primary once the sender
+# has told the bot their name is Mohit Mishra in plain text - checked
+# against every incoming message until it matches, then remembered forever
+# for that thread (see is_primary_confirmed on the Thread model).
+_PRIMARY_NAME_RE = re.compile(r"\bmohit\s+mishra\b", re.IGNORECASE)
+
+
+def _declares_primary_name(text: str) -> bool:
+    return bool(_PRIMARY_NAME_RE.search(text))
+
 
 # One lock per sender - guarantees that if this person sends several
 # messages close together, each one is FULLY processed (LLM call, DB write,
@@ -56,13 +69,15 @@ async def handle_incoming_message(sender_id: str, text: str) -> None:
 
 
 async def _handle_incoming_message_locked(sender_id: str, text: str) -> None:
-    is_primary = bool(settings.PRIMARY_USER_ID) and sender_id == settings.PRIMARY_USER_ID
-    if not settings.PRIMARY_USER_ID:
-        is_primary = True
-
     async with get_session() as session:
         thread = await get_or_create_thread(session, sender_id)
         await add_message(session, thread.id, role="user", content=text)
+
+        is_primary = thread.is_primary_confirmed
+        if not is_primary and _declares_primary_name(text):
+            await mark_thread_primary_confirmed(session, thread.id)
+            is_primary = True
+            logger.info(f"Thread {thread.id} ({sender_id}) confirmed as primary (Mohit Mishra)")
 
         recent = await get_recent_messages(session, thread.id)
         history = messages_to_history(recent[:-1])  # exclude the message we just added

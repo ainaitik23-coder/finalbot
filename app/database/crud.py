@@ -93,6 +93,14 @@ async def get_last_pending_send_at(session: AsyncSession, thread_id: int) -> dat
     return result.scalar_one_or_none()
 
 
+async def mark_thread_primary_confirmed(session: AsyncSession, thread_id: int) -> None:
+    result = await session.execute(select(Thread).where(Thread.id == thread_id))
+    thread = result.scalar_one_or_none()
+    if thread is not None and not thread.is_primary_confirmed:
+        thread.is_primary_confirmed = True
+        await session.commit()
+
+
 async def mark_scheduled_status(session: AsyncSession, scheduled_id: int, status: str) -> None:
     result = await session.execute(
         select(ScheduledMessage).where(ScheduledMessage.id == scheduled_id)

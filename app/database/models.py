@@ -20,6 +20,7 @@ class Thread(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     ig_sender_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     title: Mapped[str] = mapped_column(String(255), default="New conversation")
+    is_primary_confirmed: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
